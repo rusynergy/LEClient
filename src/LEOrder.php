@@ -694,7 +694,7 @@ class LEOrder
                     return false;
                 }
                 if (isset($preferredChain)) {
-                    $parsedIntermediate = openssl_x509_parse($certificates['intermediate']);
+                    $parsedIntermediate = openssl_x509_parse($certificates[1]);
                     $headers = str_replace("\r\n", "\n", $post['header']);
                     if(isset($parsedIntermediate['issuer']['CN'])
                         && $preferredChain !== $parsedIntermediate['issuer']['CN']) {
@@ -706,7 +706,7 @@ class LEOrder
 
                                 $alternativeCertResponse = $this->postCertificateRequest($link);
                                 $alternativeCertificate = $this->validateCertificateResponse($alternativeCertResponse);
-                                $parsedIntermediate = openssl_x509_parse($alternativeCertificate['intermediate']);
+                                $parsedIntermediate = openssl_x509_parse($alternativeCertificate[1]);
                                 if (isset($parsedIntermediate['issuer']['CN']) && $preferredChain === $parsedIntermediate['issuer']['CN']) {
                                     $certificates = $alternativeCertificate;
                                     $preferredChainFound = true;
@@ -826,15 +826,21 @@ class LEOrder
      */
     private function saveCertificate(array $certificates)
     {
-        if (isset($this->certificateKeys['certificate'])) file_put_contents($this->certificateKeys['certificate'], $certificates['leaf']);
+        if (isset($this->certificateKeys['certificate'])) {
+            file_put_contents($this->certificateKeys['certificate'], $certificates[0]);
+        }
 
         if (count($certificates) > 1 && isset($this->certificateKeys['fullchain_certificate'])) {
             $fullchain = implode("\n", $certificates) . "\n";
             file_put_contents(trim($this->certificateKeys['fullchain_certificate']), $fullchain);
         }
+
         if ($this->log instanceof \Psr\Log\LoggerInterface) {
             $this->log->info('Certificate for \'' . $this->basename . '\' saved');
-        } elseif ($this->log >= LEClient::LOG_STATUS) LEFunctions::log('Certificate for \'' . $this->basename . '\' saved', 'function getCertificate');
+        } elseif ($this->log >= LEClient::LOG_STATUS) {
+            LEFunctions::log('Certificate for \'' . $this->basename . '\' saved', 'function getCertificate');
+        }
+
         return true;
     }
 
@@ -844,10 +850,7 @@ class LEOrder
         {
             if(preg_match_all('~(-----BEGIN\sCERTIFICATE-----[\s\S]+?-----END\sCERTIFICATE-----)~i', $response['body'], $matches))
             {
-                return [
-                    'leaf' => $matches[0][0],
-                    'intermediate' => $matches[0][1],
-                ];
+                return $matches[0]; // возвращаем ВСЕ сертификаты из ответа ACME
             }
             else
             {
